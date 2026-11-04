@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Диспетчер Лида Бир Транс</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#1a1d21;--mut:#6b7280;--acc:#d97706;--bd:#e5e7eb;--ok:#16a34a;--bad:#dc2626}
+@media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1b1f25;--tx:#f1f3f5;--mut:#9aa3af;--bd:#2a3039}}
+*{box-sizing:border-box}
+body{margin:0 auto;font:16px/1.35 -apple-system,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--tx);max-width:640px;padding-bottom:90px}
+#h{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--bd);padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top))}
+.hr{display:flex;justify-content:space-between;font-size:17px}.hr.s{font-size:13px;color:var(--mut);margin-top:4px}
+#b{padding:12px 14px}
+h2{font-size:16px;margin:16px 0 8px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+.c.t{cursor:pointer}.r{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.n{font-weight:600}.m{color:var(--mut);font-size:13px}
+.pay{color:var(--ok);font-weight:700}
+.chip{font-size:12px;padding:3px 9px;border-radius:12px;background:var(--bg);white-space:nowrap}
+.btn{display:block;width:100%;padding:12px;border:0;border-radius:10px;background:var(--acc);color:#fff;font-size:16px;font-weight:600;margin-top:8px}
+.btn.g{background:var(--bg);color:var(--tx);border:1px solid var(--bd)}.btn[disabled]{opacity:.4}
+.bad{color:var(--bad)}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0)}
+nav a{flex:1;text-align:center;padding:8px 0;font-size:11px;color:var(--mut)}nav a b{display:block;font-size:20px;font-weight:400}
+nav a.on{color:var(--acc)}nav a.nx{color:#fff;background:var(--acc);margin:6px 4px;border-radius:12px;padding:4px 0}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:20;display:flex;align-items:flex-end}
+.sh{background:var(--bg);width:100%;max-width:640px;margin:auto;max-height:80vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px}
+.wave{background:#fef3c7;color:#92400e;font-size:13px;padding:6px 10px;border-radius:8px;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="h"></div><div id="b"></div><nav id="n"></nav><div id="m"></div>
+<script>
+var TG=window.Telegram&&Telegram.WebApp;
+if(TG){try{TG.ready();TG.expand()}catch(e){}}
+function f(n){return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g," ")}
+function R(a,b){return a+Math.floor(Math.random()*(b-a+1))}
+
+/* ===== МАШИНЫ (реальные данные) =====
+[номер, модель, л.с., надёжность, прицеп(i/t), водитель, состояние(0=работает,1=резерв,3=ремонт), цвет, госномер, семейство, направление, кабина] */
+var T=[
+[1,"Volvo FM",380,.90,"i","Александр Федорович (Алик)",0,"w","9179 AB-4","volvo","by","FM низкая"],
+[2,"Volvo FM",380,.90,"i","Валентин",0,"w","1111 AE-4","volvo","by","FM низкая"],
+[3,"Volvo FH12",420,.93,"i","Чесь Чапля",0,"b","0014 AB-4","volvo","by","высокая"],
+[4,"Volvo FH3 Classic",420,.93,"i","",1,"b","1255 AE-4","volvo","by","—"],
+[5,"Volvo FH3 Classic",460,.93,"i","Гена Жилинский",0,"y","8222 AB-4","volvo","by","Globetrotter"],
+[6,"Volvo FH3 Classic",460,.93,"i","Миша Женко",0,"y","9617 AK-4","volvo","by","Globetrotter"],
+[7,"Volvo FH3 Classic",460,.93,"i","Тад Ословский",0,"y","8332 AB-4","volvo","by","Globetrotter"],
+[8,"Volvo FH12 XL",460,.93,"i","Олег Кириленко",0,"y","5797 AB-4","volvo","by","Globetrotter XL"],
+[9,"DAF XF105 Space Cab",460,.92,"i","",3,"w","AX 0125-4","daf","by","Space"],
+[10,"DAF XF105 Space Cab",460,.92,"i","Юзик",0,"w","5233 AE-4","daf","by","Space"],
+[11,"DAF XF105 Super Space Cab",460,.92,"i","Беляк",0,"w","AE 5233-4","daf","by","Super Space"],
+[12,"DAF XF105 Space Cab",460,.92,"i","Паша Ословский",0,"w","AK 8183-4","daf","by","Space"],
+[13,"DAF XF105 Space Cab",460,.92,"i","",1,"w","—","daf","by","Space (чёрная решётка)"],
+[14,"DAF XF105 Space Cab",460,.92,"i","Шиманец",0,"y","1047 AI-4","daf","by","Space"],
+[15,"DAF XF105 Space Cab",460,.92,"i","",1,"y","8013 AB-4","daf","by","Space"],
+[16,"DAF XF105 Super Space Cab",460,.92,"i","Вова Бжезинский",0,"y","—","daf","by","Super Space"],
+[17,"Dongfeng GX",520,.96,"t","Артур",0,"w","—","dongfeng","ru","GX"],
+[18,"Dongfeng GX",520,.96,"t","Василич",0,"w","—","dongfeng","ru","GX"],
+[19,"Dongfeng GX",520,.96,"t","",1,"w","—","dongfeng","ru","GX"],
+[20,"Dongfeng GX",520,.96,"t","",1,"w","—","dongfeng","ru","GX"],
+[21,"Dongfeng GX",520,.96,"t","Ясюлевич",0,"t","AH 7721-4","dongfeng","ru","GX"],
+[22,"КАМАЗ-54901 (К5)",450,.95,"t","Саня Сазанович",0,"g","4889 AH-4","kamaz","by","К5"],
+[23,"КАМАЗ-54901 (К5)",450,.95,"t","",1,"w","AH 3219-4","kamaz","ru","К5 брендированный"],
+[24,"КАМАЗ-5490 Neo",401,.90,"i","",1,"w","1973 AM-4","kamaz","by","Neo"],
+[25,"Scania R Highline",450,.94,"i","",1,"w","5253 AE-4","scania","by","Highline"],
+[26,"Iveco Stralis II",440,.90,"i","Кузя",0,"w","—","iveco","by","Hi-Road"],
+[27,"Renault T-Range",440,.91,"t","",1,"b","7094 AX-4","renault","by","высокая"]
+];
+
+/* ===== ГОРОДА БЕЛАРУСИ ===== */
+var BY=[
+["Минск",[["Бехтерева 10",225],["Прилесье",235],["Озеро",194]]],
+["Гомель",[["Склад",512],["Стеклозавод",514]]],
+["Брест",[["Склад",330]]],
+["Витебск",[["Ленинградская 138",472]]],
+["Могилёв",[["Челюскинцев 95Б/1",423]]],
+["Гродно",[["Склад",140]]],
+["Барановичи",[["Склад",138]]],
+["Бобруйск",[["Легпромразвитие",368]]],
+["Скидель",[["Сахарный завод",138]]],
+["Полоцк",[["Склад",390]]],
+["Новополоцк",[["Склад",395]]],
+["Заславль",[["Советская 128А",180]]]
+];
+
+/* ===== ГОРОДА РОССИИ ===== */
+var RU=[
+["Смоленск",[["Склад",650]]],
+["Москва",[["Склад",900]]],
+["Брянск",[["Склад",750]]],
+["Калуга",[["Склад",850]]],
+["Тверь",[["Склад",950]]],
+["Санкт-Петербург",[["Склад",1100]]]
+];
+
+/* ===== ГРУЗЫ ===== */
+var CARGO_BY=[
+["Пиво «Лидское» Premium","i","Лидский пивзавод"],
+["Пиво «Лидское» Pilsner","i","Лидский пивзавод"],
+["Квас «Лидский»","i","Лидский пивзавод"],
+["Газировка Pepsi/Mirinda","i","Лидский пивзавод"],
+["Сидр FIZZ","i","Лидский пивзавод"],
+["Вода «Aura»","i","Лидский пивзавод"],
+["Мебель (склад Толстого)","t","Склад Толстого"],
+["Холодильники (склад Толстого)","t","Склад Толстого"],
+["Продукция (склад Фурманова)","i","Склад Фурманова"]
+];
+var CARGO_RU=[
+["Пиво «Лидское»","t","Лидский пивзавод"],
+["Квас «Лидский»","t","Лидский пивзавод"],
+["Газировка","t","Лидский пивзавод"],
+["Поддоны","t","Склад"]
+];
+
+/* ===== СОСТОЯНИЕ ===== */
+var S;
+var KEY="lbt_v2";
+function nw(){return{day:1,money:5000,rep:50,wave:1,orders:[],trips:[],log:[],
+tr:T.map(function(t){return{id:t[0],dr:t[5],st:t[6],fat:0,busy:0}}),oid:1}}
+function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}if(!S||!S.tr)S=nw()}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function ti(id){return T.filter(function(t){return t[0]==id})[0]}
+function ts(id){return S.tr.filter(function(s){return s.id==id})[0]}
+
+/* ===== ЗАЯВКИ ===== */
+function genWave(count){
+  for(var i=0;i<count;i++){
+    var isRU=Math.random()<0.15;
+    var pool=isRU?RU:BY;
+    var c=pool[R(0,pool.length-1)];
+    var pt=c[1][R(0,c[1].length-1)];
+    var cargo=isRU?CARGO_RU[R(0,CARGO_RU.length-1)]:CARGO_BY[R(0,CARGO_BY.length-1)];
+    var km=pt[1];
+    var rate=isRU?0.40:1.50;
+    var pay=Math.round(km*rate);
+    S.orders.push({id:S.oid++,city:c[0],point:pt[0],km:km,ru:isRU,g:cargo[0],type:cargo[1],from:cargo[2],pay:pay,wave:S.wave});
+  }
+}
+
+/* ===== ПРОВЕРКА НАКЛАДНОЙ ===== */
+function canAssign(tid,oid){
+  var o=S.orders.filter(function(x){return x.id==oid})[0];
+  var s=ts(tid),t=ti(tid);
+  if(!o||!s||s.busy||s.st!=0)return{ok:false,msg:"Машина недоступна"};
+  if(o.ru&&t[10]!="ru")return{ok:false,msg:"В Россию — только Dongfeng и КАМАЗ №23"};
+  if(!o.ru&&t[10]=="ru")return{ok:false,msg:"Эта машина работает только по России"};
+  if(t[4]!=o.type)return{ok:false,msg:"Не тот прицеп: нужен "+(o.type=="i"?"изотерм":"тент")};
+  return{ok:true};
+}
+
+/* ===== ОТПРАВКА ===== */
+function assign(tid,oid){
+  var chk=canAssign(tid,oid);
+  if(!chk.ok){alert("❌ "+chk.msg);return}
+  var o=S.orders.filter(function(x){return x.id==oid})[0];
+  var s=ts(tid);
+  s.busy=1;
+  S.orders=S.orders.filter(function(x){return x.id!=oid});
+  S.trips.push({tid:tid,o:o,day:S.day,status:"В пути"});
+  log("▶ "+s.dr+" → "+o.city+" ("+o.point+") · "+f(o.pay)+" Br");
+  save();render();closeModal();
+}
+
+function log(x){S.log.unshift("День "+S.day+": "+x);S.log=S.log.slice(0,50)}
+
+/* ===== ЭКРАНЫ ===== */
+var H=document.getElementById("h"),B=document.getElementById("b"),N=document.getElementById("n"),M=document.getElementById("m");
+function render(){
+  H.innerHTML='<div class="hr"><b>📅 День '+S.day+'</b><b>💰 '+f(S.money)+' Br</b></div><div class="hr s"><span>⭐ '+S.rep+'</span><span>Заявок: '+S.orders.length+'</span><span>В рейсе: '+S.trips.length+'</span></div>';
+  navb();
+  if(S.tab=="o")screenOrders();
+  else if(S.tab=="f")screenFleet();
+  else if(S.tab=="t")screenTrips();
+  else screenLog();
+}
+function navb(){
+  var L=[["o","📦","Заявки"],["f","🚛","Парк"],["t","🛣","Рейсы"],["l","📋","Журнал"]];
+  N.innerHTML=L.map(function(t){return '<a class="'+(S.tab==t[0]?"on":"")+'" onclick="tab(\''+t[0]+'\')"><b>'+t[1]+'</b>'+t[2]+'</a>'}).join("");
+}
+function tab(x){S.tab=x;save();render()}
+
+function screenOrders(){
+  var h='<h2 style="margin-top:0">Заявки · волна '+S.wave+'/3 · всего '+S.orders.length+'</h2>';
+  if(!S.orders.length)h+='<div class="c m">Заявок пока нет. Жди следующей волны (14:00, 17:00) или нового дня.</div>';
+  S.orders.forEach(function(o){
+    h+='<div class="c t" onclick="pick('+o.id+')"><div class="r"><span class="n">'+o.from+' → '+o.city+' ('+o.point+')</span><span class="pay">'+f(o.pay)+' Br</span></div><div class="m">'+o.g+' · '+(o.type=="i"?"изотерм":"тент")+' · '+o.km+' км'+(o.ru?' · 🇷🇺':'')+'</div></div>';
+  });
+  B.innerHTML=h;
+}
+
+function pick(oid){
+  var o=S.orders.filter(function(x){return x.id==oid})[0];
+  var free=S.tr.filter(function(s){return s.st==0&&!s.busy});
+  var h='<div class="n">'+o.from+' → '+o.city+'</div><div class="m">'+o.g+' · '+o.km+' км · '+f(o.pay)+' Br</div>';
+  if(!free.length)h+='<div class="c m" style="margin-top:10px">Нет свободных машин.</div>';
+  free.forEach(function(s){
+    var t=ti(s.id),chk=canAssign(s.id,oid);
+    h+='<div class="c'+(chk.ok?' t':'')+'" style="margin-top:10px" onclick="'+(chk.ok?'assign('+s.id+','+oid+')':'')+'"><div class="r"><span class="n">'+s.dr+' · '+t[1]+' №'+s.id+'</span><span class="chip">'+(t[4]=="i"?"изотерм":"тент")+'</span></div><div class="m">'+t[8]+(chk.ok?'':' · <span class="bad">'+chk.msg+'</span>')+'</div></div>';
+  });
+  modal(h);
+}
+
+function screenFleet(){
+  var h='<h2 style="margin-top:0">Автопарк ('+S.tr.length+')</h2>';
+  var fam={volvo:"🇸🇪 Volvo",daf:"🇳🇱 DAF",dongfeng:"🇨🇳 Dongfeng",kamaz:"🇷🇺 КАМАЗ",scania:"🇸🇪 Scania",iveco:"🇮🇹 Iveco",renault:"🇫🇷 Renault"};
+  ["volvo","daf","dongfeng","kamaz","scania","iveco","renault"].forEach(function(k){
+    var list=S.tr.filter(function(s){return ti(s.id)[9]==k});
+    if(!list.length)return;
+    h+='<h2>'+fam[k]+'</h2>';
+    list.forEach(function(s){
+      var t=ti(s.id);
+      var st=s.st==0?(s.busy?"В рейсе":"Свободен"):s.st==1?"Нет водителя":"Ремонт";
+      h+='<div class="c"><div class="r"><div><div class="n">'+t[1]+' №'+s.id+' · '+t[8]+'</div><div class="m">'+(s.dr||"—")+' · '+(t[4]=="i"?"изотерм":"тент")+' · '+t[10].toUpperCase()+'</div></div><span class="chip">'+st+'</span></div></div>';
+    });
+  });
+  B.innerHTML=h;
+}
+
+function screenTrips(){
+  var h='<h2 style="margin-top:0">В пути ('+S.trips.length+')</h2>';
+  if(!S.trips.length)h+='<div class="c m">Никто не в рейсе.</div>';
+  S.trips.forEach(function(p){
+    var s=ts(p.tid);
+    h+='<div class="c"><div class="r"><span class="n">'+s.dr+' → '+p.o.city+'</span><span class="chip">'+p.status+'</span></div><div class="m">'+p.o.point+' · '+p.o.g+'</div></div>';
+  });
+  B.innerHTML=h;
+}
+
+function screenLog(){
+  var h='<h2 style="margin-top:0">Журнал</h2>';
+  if(!S.log.length)h+='<div class="c m">Пока пусто.</div>';
+  S.log.forEach(function(x){h+='<div class="c m">'+x+'</div>'});
+  B.innerHTML=h;
+}
+
+function modal(h){M.innerHTML='<div class="ov" onclick="if(event.target==this)closeModal()"><div class="sh">'+h+'<button class="btn g" onclick="closeModal()">Закрыть</button></div></div>'}
+function closeModal(){M.innerHTML=""}
+
+load();S.tab=S.tab||"o";render();
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Диспетчер Лида Бир Транс</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#1a1d21;--mut:#6b7280;--acc:#d97706;--bd:#e5e7eb;--ok:#16a34a;--bad:#dc2626}
+@media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1b1f25;--tx:#f1f3f5;--mut:#9aa3af;--bd:#2a3039}}
+*{box-sizing:border-box}
+body{margin:0 auto;font:16px/1.35 -apple-system,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--tx);max-width:640px;padding-bottom:90px}
+#h{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--bd);padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top))}
+.hr{display:flex;justify-content:space-between;font-size:17px}.hr.s{font-size:13px;color:var(--mut);margin-top:4px}
+#b{padding:12px 14px}
+h2{font-size:16px;margin:16px 0 8px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+.c.t{cursor:pointer}.r{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.n{font-weight:600}.m{color:var(--mut);font-size:13px}
+.pay{color:var(--ok);font-weight:700}
+.chip{font-size:12px;padding:3px 9px;border-radius:12px;background:var(--bg);white-space:nowrap}
+.btn{display:block;width:100%;padding:12px;border:0;border-radius:10px;background:var(--acc);color:#fff;font-size:16px;font-weight:600;margin-top:8px}
+.btn.g{background:var(--bg);color:var(--tx);border:1px solid var(--bd)}.btn[disabled]{opacity:.4}
+.bad{color:var(--bad)}.ok{color:var(--ok)}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0)}
+nav a{flex:1;text-align:center;padding:8px 0;font-size:11px;color:var(--mut)}nav a b{display:block;font-size:20px;font-weight:400}
+nav a.on{color:var(--acc)}nav a.nx{color:#fff;background:var(--acc);margin:6px 4px;border-radius:12px;padding:4px 0}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:20;display:flex;align-items:flex-end}
+.sh{background:var(--bg);width:100%;max-width:640px;margin:auto;max-height:80vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px}
+.ev{font-size:13px;color:var(--mut);padding:4px 0;border-bottom:1px solid var(--bd)}
+.bar{height:6px;border-radius:3px;background:var(--bg);margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
+</style>
+</head>
+<body>
+<div id="h"></div><div id="b"></div><nav id="n"></nav><div id="m"></div>
+<script>
+var TG=window.Telegram&&Telegram.WebApp;
+if(TG){try{TG.ready();TG.expand()}catch(e){}}
+function f(n){return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g," ")}
+function R(a,b){return a+Math.floor(Math.random()*(b-a+1))}
+
+/* ===== МАШИНЫ ===== */
+var T=[
+[1,"Volvo FM",380,.90,"i","Александр Федорович (Алик)",0,"w","9179 AB-4","volvo","by","FM низкая"],
+[2,"Volvo FM",380,.90,"i","Валентин",0,"w","1111 AE-4","volvo","by","FM низкая"],
+[3,"Volvo FH12",420,.93,"i","Чесь Чапля",0,"b","0014 AB-4","volvo","by","высокая"],
+[4,"Volvo FH3 Classic",420,.93,"i","",1,"b","1255 AE-4","volvo","by","—"],
+[5,"Volvo FH3 Classic",460,.93,"i","Гена Жилинский",0,"y","8222 AB-4","volvo","by","Globetrotter"],
+[6,"Volvo FH3 Classic",460,.93,"i","Миша Женко",0,"y","9617 AK-4","volvo","by","Globetrotter"],
+[7,"Volvo FH3 Classic",460,.93,"i","Тад Ословский",0,"y","8332 AB-4","volvo","by","Globetrotter"],
+[8,"Volvo FH12 XL",460,.93,"i","Олег Кириленко",0,"y","5797 AB-4","volvo","by","Globetrotter XL"],
+[9,"DAF XF105 Space Cab",460,.92,"i","",3,"w","AX 0125-4","daf","by","Space"],
+[10,"DAF XF105 Space Cab",460,.92,"i","Юзик",0,"w","5233 AE-4","daf","by","Space"],
+[11,"DAF XF105 Super Space Cab",460,.92,"i","Беляк",0,"w","AE 5233-4","daf","by","Super Space"],
+[12,"DAF XF105 Space Cab",460,.92,"i","Паша Ословский",0,"w","AK 8183-4","daf","by","Space"],
+[13,"DAF XF105 Space Cab",460,.92,"i","",1,"w","—","daf","by","Space"],
+[14,"DAF XF105 Space Cab",460,.92,"i","Шиманец",0,"y","1047 AI-4","daf","by","Space"],
+[15,"DAF XF105 Space Cab",460,.92,"i","",1,"y","8013 AB-4","daf","by","Space"],
+[16,"DAF XF105 Super Space Cab",460,.92,"i","Вова Бжезинский",0,"y","—","daf","by","Super Space"],
+[17,"Dongfeng GX",520,.96,"t","Артур",0,"w","—","dongfeng","ru","GX"],
+[18,"Dongfeng GX",520,.96,"t","Василич",0,"w","—","dongfeng","ru","GX"],
+[19,"Dongfeng GX",520,.96,"t","",1,"w","—","dongfeng","ru","GX"],
+[20,"Dongfeng GX",520,.96,"t","",1,"w","—","dongfeng","ru","GX"],
+[21,"Dongfeng GX",520,.96,"t","Ясюлевич",0,"t","AH 7721-4","dongfeng","ru","GX"],
+[22,"КАМАЗ-54901 (К5)",450,.95,"t","Саня Сазанович",0,"g","4889 AH-4","kamaz","by","К5"],
+[23,"КАМАЗ-54901 (К5)",450,.95,"t","",1,"w","AH 3219-4","kamaz","ru","К5 бренд"],
+[24,"КАМАЗ-5490 Neo",401,.90,"i","",1,"w","1973 AM-4","kamaz","by","Neo"],
+[25,"Scania R Highline",450,.94,"i","",1,"w","5253 AE-4","scania","by","Highline"],
+[26,"Iveco Stralis II",440,.90,"i","Кузя",0,"w","—","iveco","by","Hi-Road"],
+[27,"Renault T-Range",440,.91,"t","",1,"b","7094 AX-4","renault","by","высокая"]
+];
+
+/* ===== ГОРОДА ===== */
+var BY=[
+["Минск",[["Бехтерева 10",225],["Прилесье",235],["Озеро",194]]],
+["Гомель",[["Склад",512],["Стеклозавод",514]]],
+["Брест",[["Склад",330]]],
+["Витебск",[["Ленинградская 138",472]]],
+["Могилёв",[["Челюскинцев 95Б/1",423]]],
+["Гродно",[["Склад",140]]],
+["Барановичи",[["Склад",138]]],
+["Бобруйск",[["Легпромразвитие",368]]],
+["Скидель",[["Сахарный завод",138]]],
+["Полоцк",[["Склад",390]]],
+["Новополоцк",[["Склад",395]]],
+["Заславль",[["Советская 128А",180]]]
+];
+var RU=[
+["Смоленск",[["Склад",650]]],
+["Москва",[["Склад",900]]],
+["Брянск",[["Склад",750]]],
+["Калуга",[["Склад",850]]],
+["Тверь",[["Склад",950]]],
+["Санкт-Петербург",[["Склад",1100]]]
+];
+var CARGO_BY=[
+["Пиво «Лидское» Premium","i","Лидский пивзавод"],
+["Пиво «Лидское» Pilsner","i","Лидский пивзавод"],
+["Квас «Лидский»","i","Лидский пивзавод"],
+["Газировка Pepsi/Mirinda","i","Лидский пивзавод"],
+["Сидр FIZZ","i","Лидский пивзавод"],
+["Вода «Aura»","i","Лидский пивзавод"],
+["Мебель (Толстого)","t","Склад Толстого"],
+["Холодильники (Толстого)","t","Склад Толстого"],
+["Продукция (Фурманова)","i","Склад Фурманова"]
+];
+var CARGO_RU=[
+["Пиво «Лидское»","t","Лидский пивзавод"],
+["Квас «Лидский»","t","Лидский пивзавод"],
+["Газировка","t","Лидский пивзавод"],
+["Поддоны","t","Склад"]
+];
+
+/* ===== СОСТОЯНИЕ ===== */
+var S,KEY="lbt_v2";
+function nw(){return{day:1,money:5000,rep:50,wave:1,waveDone:{1:false,2:false,3:false},
+orders:[],trips:[],log:[],tr:T.map(function(t){return{id:t[0],dr:t[5],st:t[6],fat:0,busy:0}}),oid:1,stats:{done:0,earn:0}}}
+function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}if(!S||!S.tr)S=nw()}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function ti(id){return T.filter(function(t){return t[0]==id})[0]}
+function ts(id){return S.tr.filter(function(s){return s.id==id})[0]}
+function log(x){S.log.unshift("День "+S.day+": "+x);S.log=S.log.slice(0,60)}
+
+/* ===== ВОЛНЫ ЗАЯВОК ===== */
+function genWave(count,wave){
+  for(var i=0;i<count;i++){
+    var isRU=Math.random()<0.15;
+    var pool=isRU?RU:BY;
+    var c=pool[R(0,pool.length-1)];
+    var pt=c[1][R(0,c[1].length-1)];
+    var cargo=isRU?CARGO_RU[R(0,CARGO_RU.length-1)]:CARGO_BY[R(0,CARGO_BY.length-1)];
+    var rate=isRU?0.40:1.50;
+    S.orders.push({id:S.oid++,city:c[0],point:pt[0],km:pt[1],ru:isRU,g:cargo[0],type:cargo[1],from:cargo[2],pay:Math.round(pt[1]*rate),wave:wave});
+  }
+}
+function nextWave(){
+  if(S.wave>3){alert("Все волны на сегодня разобраны. Жми «Следующий день».");return}
+  var cnt={1:15,2:5,3:10}[S.wave];
+  genWave(cnt,S.wave);
+  S.waveDone[S.wave]=true;
+  log("📨 Волна "+S.wave+": "+cnt+" заявок");
+  S.wave++;
+  save();render();
+}
+
+/* ===== ПРОВЕРКА НАКЛАДНОЙ ===== */
+function canAssign(tid,oid){
+  var o=S.orders.filter(function(x){return x.id==oid})[0];
+  var s=ts(tid),t=ti(tid);
+  if(!o||!s||s.busy||s.st!=0)return{ok:false,msg:"Недоступна"};
+  if(o.ru&&t[10]!="ru")return{ok:false,msg:"В РФ — только Dongfeng/КАМАЗ №23"};
+  if(!o.ru&&t[10]=="ru")return{ok:false,msg:"Только по России"};
+  if(t[4]!=o.type)return{ok:false,msg:"Нужен "+(o.type=="i"?"изотерм":"тент")};
+  return{ok:true};
+}
+
+/* ===== ВРЕМЯ РЕЙСА ===== */
+function calcTrip(o,t){
+  var speed=60; // км/ч средняя
+  var driveH=o.km/speed;
+  var loadH=o.from=="Сахарный завод"?2:(o.type=="i"?3:2);
+  var unloadH=o.type=="i"?3:2;
+  // обратная загрузка
+  var back=null;
+  if(o.city=="Гомель")back="Кеги на Лидский пивзавод";
+  else if(o.city=="Скидель")back=null; // сахар уже загружен обратно
+  else if(Math.random()<0.25)back="Брак на Лидский пивзавод";
+  var backH=back?2:0;
+  var totalH=loadH+driveH+unloadH+backH;
+  var days=Math.ceil(totalH/12); // 12 ч активных в день (с отдыхом)
+  return{loadH:loadH,driveH:driveH,unloadH:unloadH,back:back,backH:backH,days:Math.max(1,days)};
+}
+
+/* ===== ОТПРАВКА ===== */
+function assign(tid,oid){
+  var chk=canAssign(tid,oid);
+  if(!chk.ok){alert("❌ "+chk.msg);return}
+  var o=S.orders.filter(function(x){return x.id==oid})[0];
+  var s=ts(tid),t=ti(tid);
+  var tr=calcTrip(o,t);
+  s.busy=1;
+  S.orders=S.orders.filter(function(x){return x.id!=oid});
+  S.trips.push({tid:tid,o:o,left:tr.days,tot:tr.days,calc:tr,stage:"Загрузка"});
+  log("▶ "+s.dr+" · "+t[1]+" №"+tid+" → "+o.city+" ("+tr.days+" дн.)");
+  save();render();closeModal();
+}
+
+/* ===== СЛЕДУЮЩИЙ ДЕНЬ ===== */
+function nextDay(){
+  if(S.trips.length===0&&S.wave>3){
+    // всё разобрано — новый день
+  }
+  S.day++;
+  S.wave=1;S.waveDone={1:false,2:false,3:false};
+  var done=[];
+  S.trips.forEach(function(p){
+    p.left--;
+    if(p.left<=0)done.push(p);
+  });
+  done.forEach(finishTrip);
+  S.trips=S.trips.filter(function(p){return p.left>0});
+  // расходы
+  var act=S.tr.filter(function(s){return s.st==0&&s.dr}).length;
+  var fix=act*45;
+  S.money-=fix;
+  log("💸 Расходы дня: "+f(fix)+" Br");
+  // авто-волна 1
+  genWave(15,1);S.waveDone[1]=true;S.wave=2;
+  log("📨 Утро: 15 заявок");
+  if(S.money<-5000){alert("💥 Банкротство");S=nw()}
+  save();render();
+}
+
+function finishTrip(p){
+  var s=ts(p.tid),o=p.o;
+  s.busy=0;
+  var driverPay=Math.round(o.km*0.167);
+  var fuel=Math.round(o.km*0.30*2.4);
+  var gain=o.pay-driverPay-fuel;
+  S.money+=o.pay;
+  S.stats.done++;
+  S.stats.earn+=o.pay;
+  log("✅ "+s.dr+" вернулся из "+o.city+": +"+f(o.pay)+" Br (топливо "+f(fuel)+", водителю "+f(driverPay)+")");
+  if(p.calc.back)log("   ↩ Обратно: "+p.calc.back);
+}
+
+/* ===== ЭКРАНЫ ===== */
+var H=document.getElementById("h"),B=document.getElementById("b"),N=document.getElementById("n"),M=document.getElementById("m");
+function render(){
+  H.innerHTML='<div class="hr"><b>📅 День '+S.day+'</b><b>💰 '+f(S.money)+' Br</b></div><div class="hr s"><span>⭐ '+S.rep+'</span><span>Заявок: '+S.orders.length+'</span><span>В рейсе: '+S.trips.length+'</span><span>Волна '+Math.min(S.wave,3)+'/3</span></div>';
+  navb();
+  if(S.tab=="o")screenOrders();
+  else if(S.tab=="f")screenFleet();
+  else if(S.tab=="t")screenTrips();
+  else screenLog();
+}
+function navb(){
+  var L=[["o","📦","Заявки"],["f","🚛","Парк"],["x","","День"],["t","🛣","Рейсы"],["l","📋","Журнал"]];
+  N.innerHTML=L.map(function(t){
+    if(t[0]=="x")return '<a class="nx" onclick="nextDay()"><b>⏭</b>След. день</a>';
+    return '<a class="'+(S.tab==t[0]?"on":"")+'" onclick="tab(\''+t[0]+'\')"><b>'+t[1]+'</b>'+t[2]+'</a>';
+  }).join("");
+}
+function tab(x){S.tab=x;save();render()}
+
+function screenOrders(){
+  var h='<h2 style="margin-top:0">Заявки · волна '+Math.min(S.wave,3)+'/3 · '+S.orders.length+' шт.</h2>';
+  if(S.wave<=3&&!S.waveDone[S.wave])
+    h+='<button class="btn" onclick="nextWave()">📨 Получить волну '+S.wave+' ('+({1:15,2:5,3:10}[S.wave])+' заявок)</button>';
+  if(!S.orders.length)h+='<div class="c m">Заявок нет. Получи волну или жми «След. день».</div>';
+  S.orders.forEach(function(o){
+    h+='<div class="c t" onclick="pick('+o.id+')"><div class="r"><span class="n">'+o.from+' → '+o.city+' ('+o.point+')</span><span class="pay">'+f(o.pay)+' Br</span></div><div class="m">'+o.g+' · '+(o.type=="i"?"изотерм":"тент")+' · '+o.km+' км'+(o.ru?' · 🇷🇺':'')+'</div></div>';
+  });
+  B.innerHTML=h;
+}
+
+function pick(oid){
+  var o=S.orders.filter(function(x){return x.id==oid})[0];
+  var free=S.tr.filter(function(s){return s.st==0&&!s.busy});
+  var h='<div class="n">'+o.from+' → '+o.city+' ('+o.point+')</div><div class="m">'+o.g+' · '+o.km+' км · '+f(o.pay)+' Br</div>';
+  if(!free.length)h+='<div class="c m" style="margin-top:10px">Нет свободных машин.</div>';
+  free.forEach(function(s){
+    var t=ti(s.id),chk=canAssign(s.id,oid);
+    var tr=calcTrip(o,t);
+    h+='<div class="c'+(chk.ok?' t':'')+'" style="margin-top:10px" onclick="'+(chk.ok?'assign('+s.id+','+oid+')':'')+'"><div class="r"><span class="n">'+s.dr+' · '+t[1]+' №'+s.id+'</span><span class="chip">'+(t[4]=="i"?"изотерм":"тент")+'</span></div><div class="m">'+t[8]+' · ~'+tr.days+' дн.'+(tr.back?' · ↩ '+tr.back:'')+(chk.ok?'':' · <span class="bad">'+chk.msg+'</span>')+'</div></div>';
+  });
+  modal(h);
+}
+
+function screenFleet(){
+  var h='<h2 style="margin-top:0">Автопарк ('+S.tr.length+')</h2>';
+  var fam={volvo:"🇸🇪 Volvo",daf:"🇳🇱 DAF",dongfeng:"🇨🇳 Dongfeng",kamaz:"🇷🇺 КАМАЗ",scania:"🇸🇪 Scania",iveco:"🇮🇹 Iveco",renault:"🇫🇷 Renault"};
+  ["volvo","daf","dongfeng","kamaz","scania","iveco","renault"].forEach(function(k){
+    var list=S.tr.filter(function(s){return ti(s.id)[9]==k});
+    if(!list.length)return;
+    h+='<h2>'+fam[k]+'</h2>';
+    list.forEach(function(s){
+      var t=ti(s.id);
+      var st=s.st==0?(s.busy?"В рейсе":"Свободен"):s.st==1?"Нет водителя":"Ремонт";
+      h+='<div class="c"><div class="r"><div><div class="n">'+t[1]+' №'+s.id+' · '+t[8]+'</div><div class="m">'+(s.dr||"—")+' · '+(t[4]=="i"?"изотерм":"тент")+' · '+t[10].toUpperCase()+'</div></div><span class="chip">'+st+'</span></div></div>';
+    });
+  });
+  B.innerHTML=h;
+}
+
+function screenTrips(){
+  var h='<h2 style="margin-top:0">В пути ('+S.trips.length+')</h2>';
+  if(!S.trips.length)h+='<div class="c m">Никто не в рейсе.</div>';
+  S.trips.forEach(function(p){
+    var s=ts(p.tid);
+    var prog=Math.round(100*(p.tot-p.left)/p.tot);
+    h+='<div class="c"><div class="r"><span class="n">'+s.dr+' → '+p.o.city+' ('+p.o.point+')</span><span class="chip">'+p.left+' дн.</span></div><div class="m">'+p.o.g+' · '+p.o.km+' км</div><div class="bar"><i style="width:'+prog+'%"></i></div>'+(p.calc.back?'<div class="m">↩ '+p.calc.back+'</div>':'')+'</div>';
+  });
+  B.innerHTML=h;
+}
+
+function screenLog(){
+  var h='<h2 style="margin-top:0">Журнал</h2><div class="c"><div class="m">Рейсов: '+S.stats.done+' · Выручка: '+f(S.stats.earn)+' Br</div></div>';
+  if(!S.log.length)h+='<div class="c m">Пока пусто.</div>';
+  S.log.forEach(function(x){h+='<div class="ev">'+x+'</div>'});
+  B.innerHTML=h;
+}
+
+function modal(h){M.innerHTML='<div class="ov" onclick="if(event.target==this)closeModal()"><div class="sh">'+h+'<button class="btn g" onclick="closeModal()">Закрыть</button></div></div>'}
+function closeModal(){M.innerHTML=""}
+
+load();S.tab=S.tab||"o";render();
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Диспетчер Лида Бир Транс</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#1a1d21;--mut:#6b7280;--acc:#d97706;--bd:#e5e7eb;--ok:#16a34a;--bad:#dc2626}
+@media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1b1f25;--tx:#f1f3f5;--mut:#9aa3af;--bd:#2a3039}}
+*{box-sizing:border-box}
+body{margin:0 auto;font:16px/1.35 -apple-system,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--tx);max-width:640px;padding-bottom:90px}
+#h{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--bd);padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top))}
+.hr{display:flex;justify-content:space-between;font-size:17px}.hr.s{font-size:13px;color:var(--mut);margin-top:4px}
+#b{padding:12px 14px}
+h2{font-size:16px;margin:16px 0 8px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+.c.t{cursor:pointer}.r{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.n{font-weight:600}.m{color:var(--mut);font-size:13px}
+.pay{color:var(--ok);font-weight:700}
+.chip{font-size:12px;padding:3px 9px;border-radius:12px;background:var(--bg);white-space:nowrap}
+.btn{display:block;width:100%;padding:12px;border:0;border-radius:10px;background:var(--acc);color:#fff;font-size:16px;font-weight:600;margin-top:8px}
+.btn.g{background:var(--bg);color:var(--tx);border:1px solid var(--bd)}.btn[disabled]{opacity:.4}
+.bad{color:var(--bad)}.ok{color:var(--ok)}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0)}
+nav a{flex:1;text-align:center;padding:8px 0;font-size:11px;color:var(--mut)}nav a b{display:block;font-size:20px;font-weight:400}
+nav a.on{color:var(--acc)}nav a.nx{color:#fff;background:var(--acc);margin:6px 4px;border-radius:12px;padding:4px 0}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:20;display:flex;align-items:flex-end}
+.sh{background:var(--bg);width:100%;max-width:640px;margin:auto;max-height:80vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px}
+.ev{font-size:13px;color:var(--mut);padding:4px 0;border-bottom:1px solid var(--bd)}
+.bar{height:6px;border-radius:3px;background:var(--bg);margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
+.tag{display:inline-block;font-size:11px;padding:2px 6px;border-radius:6px;background:var(--bg);margin-right:4px}
+</style>
+</head>
+<body>
+<div id="h"></div><div id="b"></div><nav id="n"></nav><div id="m"></div>
+<script>
+var TG=window.Telegram&&Telegram.WebApp;
+if(TG){try{TG.ready();TG.expand()}catch(e){}}
+function f(n){return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g," ")}
+function R(a,b){return a+Math.floor(Math.random()*(b-a+1))}
+
+var T=[
+[1,"Volvo FM",380,.90,"i","Александр Федорович (Алик)",0,"w","9179 AB-4","volvo","by","FM низкая"],
+[2,"Volvo FM",380,.90,"i","Валентин",0,"w","1111 AE-4","volvo","by","FM низкая"],
+[3,"Volvo FH12",420,.93,"i","Чесь Чапля",0,"b","0014 AB-4","volvo","by","высокая"],
+[4,"Volvo FH3 Classic",420,.93,"i","",1,"b","1255 AE-4","volvo","by","—"],
+[5,"Volvo FH3 Classic",460,.93,"i","Гена Жилинский",0,"y","8222 AB-4","volvo","by","Globetrotter"],
+[6,"Volvo FH3 Classic",460,.93,"i","Миша Женко",0,"y","9617 AK-4","volvo","by","Globetrotter"],
+[7,"Volvo FH3 Classic",460,.93,"i","Тад Ословский",0,"y","8332 AB-4","volvo","by","Globetrotter"],
+[8,"Volvo FH12 XL",460,.93,"i","Олег Кириленко",0,"y","5797 AB-4","volvo","by","Globetrotter XL"],
+[9,"DAF XF105 Space Cab",460,.92,"i","",3,"w","AX 0125-4","daf","by","Space"],
+[10,"DAF XF105 Space Cab",460,.92,"i","Юзик",0,"w","5233 AE-4","daf","by","Space"],
+[11,"DAF XF105 Super Space Cab",460,.92,"i","Беляк",0,"w","AE 5233-4","daf","by","Super Space"],
+[12,"DAF XF105 Space Cab",460,.92,"i","Паша Ословский",0,"w","AK 8183-4","daf","by","Space"],
+[13,"DAF XF105 Space Cab",460,.92,"i","",1,"w","—","daf","by","Space"],
+[14,"DAF XF105 Space Cab",460,.92,"i","Шиманец",0,"y","1047 AI-4","daf","by","Space"],
+[15,"DAF XF105 Space Cab",460,.92,"i","",1,"y","8013 AB-4","daf","by","Space"],
+[16,"DAF XF105 Super Space Cab",460,.92,"i","Вова Бжезинский",0,"y","—","daf","by","Super Space"],
+[17,"Dongfeng GX",520,.96,"t","Артур",0,"w","—","dongfeng","ru","GX"],
+[18,"Dongfeng GX",520,.96,"t","Василич",0,"w","—","dongfeng","ru","GX"],
+[19,"Dongfeng GX",520,.96,"t","",1,"w","—","dongfeng","ru","GX"],
+[20,"Dongfeng GX",520,.96,"t","",1,"w","—","dongfeng","ru","GX"],
+[21,"Dongfeng GX",520,.96,"t","Ясюлевич",0,"t","AH 7721-4","dongfeng","ru","GX"],
+[22,"КАМАЗ-54901 (К5)",450,.95,"t","Саня Сазанович",0,"g","4889 AH-4","kamaz","by","К5"],
+[23,"КАМАЗ-54901 (К5)",450,.95,"t","",1,"w","AH 3219-4","kamaz","ru","К5 бренд"],
+[24,"КАМАЗ-5490 Neo",401,.90,"i","",1,"w","1973 AM-4","kamaz","by","Neo"],
+[25,"Scania R Highline",450,.94,"i","",1,"w","5253 AE-4","scania","by","Highline"],
+[26,"Iveco Stralis II",440,.90,"i","Кузя",0,"w","—","iveco","by","Hi-Road"],
+[27,"Renault T-Range",440,.91,"t","",1,"b","7094 AX-4","renault","by","высокая"]
+];
+
+var BY=[
+["Минск",[["Бехтерева 10",225],["Прилесье",235],["Озеро",194]]],
+["Гомель",[["Склад",512],["Стеклозавод",514]]],
+["Брест",[["Склад",330]]],
+["Витебск",[["Ленинградская 138",472]]],
+["Могилёв",[["Челюскинцев 95Б/1",423]]],
+["Гродно",[["Склад",140]]],
+["Барановичи",[["Склад",138]]],
+["Бобруйск",[["Легпромразвитие",368]]],
+["Скидель",[["Сахарный завод",138]]],
+["Полоцк",[["Склад",390]]],
+["Новополоцк",[["Склад",395]]],
+["Заславль",[["Советская 128А",180]]]
+];
+var RU=[
+["Смоленск",[["Склад",650]]],
+["Москва",[["Склад",900]]],
+["Брянск",[["Склад",750]]],
+["Калуга",[["Склад",850]]],
+["Тверь",[["Склад",950]]],
+["Санкт-Петербург",[["Склад",1100]]]
+];
+var CARGO_BY=[
+["Пиво «Лидское» Premium","i","Лидский пивзавод"],
+["Пиво «Лидское» Pilsner","i","Лидский пивзавод"],
+["Квас «Лидский»","i","Лидский пивзавод"],
+["Газировка Pepsi/Mirinda","i","Лидский пивзавод"],
+["Сидр FIZZ","i","Лидский пивзавод"],
+["Вода «Aura»","i","Лидский пивзавод"],
+["Мебель (Толстого)","t","Склад Толстого"],
+["Холодильники (Толстого)","t","Склад Толстого"],
+["Продукция (Фурманова)","i","Склад Фурманова"]
+];
+var CARGO_RU=[
+["Пиво «Лидское»","t","Лидский пивзавод"],
+["Квас «Лидский»","t","Лидский пивзавод"],
+["Газировка","t","Лидский пивзавод"],
+["Поддоны","t","Склад"]
+];
+
+var S,KEY="lbt_v3";
+function nw(){return{day:1,money:5000,rep:50,wave:1,waveDone:{1:false,2:false,3:false},
+orders:[],trips:[],log:[],tr:T.map(function(t){return{id:t[0],dr:t[5],st:t[6],fat:0,busy:0}}),oid:1,stats:{done:0,earn:0}}}
+function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}if(!S||!S.tr)S=nw()}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function ti(id){return T.filter(function(t){return t[0]==id})[0]}
+function ts(id){return S.tr.filter(function(s){return s.id==id})[0]}
+function log(x){S.log.unshift("День "+S.day+": "+x);S.log=S.log.slice(0,60)}
+
+function genWave(count,wave){
+  for(var i=0;i<count;i++){
+    var isRU=Math.random()<0.15;
+    var pool=isRU?RU:BY;
+    var c=pool[R(0,pool.length-1)];
+    var pt=c[1][R(0,c[1].length-1)];
+    var cargo=isRU?CARGO_RU[R(0,CARGO_RU.length-1)]:CARGO_BY[R(0,CARGO_BY.length-1)];
+    var rate=isRU?0.40:1.50;
+    var urgent=Math.random()<0.12;
+    var pay=Math.round(pt[1]*rate*(urgent?1.3:1));
+    S.orders.push({id:S.oid++,city:c[0],point:pt[0],km:pt[1],ru:isRU,g:cargo[0],type:cargo[1],from:cargo[2],pay:pay,wave:wave,urgent:urgent});
+  }
+}
+function nextWave(){
+  if(S.wave>3){alert("Все волны на сегодня разобраны. Жми «След. день».");return}
+  var cnt={1:15,2:5,3:10}[S.wave];
+  genWave(cnt,S.wave);
+  S.waveDone[S.wave]=true;
+  log("📨 Волна "+S.wave+": "+cnt+" заявок");
+  S.wave++;
+  save();render();
+}
+
+function canAssign(tid,oid){
+  var o=S.orders.filter(function(x){return x.id==oid})[0];
+  var s=ts(tid),t=ti(tid);
+  if(!o||!s||s.busy||s.st!=0)return{ok:false,msg:"Недоступна"};
+  if(o.ru&&t[10]!="ru")return{ok:false,msg:"В РФ — только Dongfeng/КАМАЗ №23"};
+  if(!o.ru&&t[10]=="ru")return{ok:false,msg:"Только по России"};
+  if(t[4]!=o.type)return{ok:false,msg:"Нужен "+(o.type=="i"?"изотерм":"тент")};
+  return{ok:true};
+}
+
+function calcTrip(o,t){
+  var driveH=o.km/60;
+  var loadH=o.from=="Сахарный завод"?2:(o.type=="i"?3:2);
+  var unloadH=o.type=="i"?3:2;
+  var slowUnload=Math.random()<0.15;
+  if(slowUnload)unloadH+=2;
+  var back=null;
+  if(o.city=="Гомель")back="Кеги на Лидский пивзавод";
+  else if(o.city=="Скидель")back=null;
+  else if(Math.random()<0.25)back="Брак на Лидский пивзавод";
+  var backH=back?2:0;
+  var totalH=loadH+driveH+unloadH+backH;
+  var days=Math.max(1,Math.ceil(totalH/12));
+  return{loadH:loadH,driveH:driveH,unloadH:unloadH,back:back,backH:backH,days:days,slowUnload:slowUnload};
+}
+
+function assign(tid,oid){
+  var chk=canAssign(tid,oid);
+  if(!chk.ok){alert("❌ "+chk.msg);return}
+  var o=S.orders.filter(function(x){return x.id==oid})[0];
+  var s=ts(tid),t=ti(tid);
+  var tr=calcTrip(o,t);
+  s.busy=1;
+  S.orders=S.orders.filter(function(x){return x.id!=oid});
+  S.trips.push({tid:tid,o:o,left:tr.days,tot:tr.days,calc:tr,stage:"Загрузка",doc:"ТТН-"+(1000+S.oid)});
+  log("▶ "+s.dr+" · "+t[1]+" №"+tid+" → "+o.city+" ("+tr.days+" дн.) · "+("ТТН-"+(1000+S.oid)));
+  save();render();closeModal();
+}
+
+function nextDay(){
+  S.day++;
+  S.wave=1;S.waveDone={1:false,2:false,3:false};
+  var done=[];
+  S.trips.forEach(function(p){p.left--;if(p.left<=0)done.push(p)});
+  done.forEach(finishTrip);
+  S.trips=S.trips.filter(function(p){return p.left>0});
+  var act=S.tr.filter(function(s){return s.st==0&&s.dr}).length;
+  var fix=act*45;
+  S.money-=fix;
+  log("💸 Расходы дня: "+f(fix)+" Br");
+  genWave(15,1);S.waveDone[1]=true;S.wave=2;
+  log("📨 Утро: 15 заявок");
+  if(S.money<-5000){alert("💥 Банкротство");S=nw()}
+  save();render();
+}
+
+function finishTrip(p){
+  var s=ts(p.tid),o=p.o;
+  s.busy=0;
+  var driverPay=Math.round(o.km*0.167);
+  var fuel=Math.round(o.km*0.30*2.4);
+  var gain=o.pay-driverPay-fuel;
+  S.money+=o.pay;
+  S.stats.done++;
+  S.stats.earn+=o.pay;
+  log("✅ "+s.dr+" вернулся из "+o.city+": +"+f(o.pay)+" Br (топливо "+f(fuel)+", водителю "+f(driverPay)+")");
+  if(p.calc.back)log("   ↩ "+p.calc.back);
+  if(p.calc.slowUnload)log("   ⏳ Медленная выгрузка +2 ч");
+}
+
+var H=document.getElementById("h"),B=document.getElementById("b"),N=document.getElementById("n"),M=document.getElementById("m");
+function render(){
+  H.innerHTML='<div class="hr"><b>📅 День '+S.day+'</b><b>💰 '+f(S.money)+' Br</b></div><div class="hr s"><span>⭐ '+S.rep+'</span><span>Заявок: '+S.orders.length+'</span><span>В рейсе: '+S.trips.length+'</span><span>Волна '+Math.min(S.wave,3)+'/3</span></div>';
+  navb();
+  if(S.tab=="o")screenOrders();
+  else if(S.tab=="f")screenFleet();
+  else if(S.tab=="t")screenTrips();
+  else screenLog();
+}
+function navb(){
+  var L=[["o","📦","Заявки"],["f","🚛","Парк"],["x","","День"],["t","🛣","Рейсы"],["l","📋","Журнал"]];
+  N.innerHTML=L.map(function(t){
+    if(t[0]=="x")return '<a class="nx" onclick="nextDay()"><b>⏭</b>След. день</a>';
+    return '<a class="'+(S.tab==t[0]?"on":"")+'" onclick="tab(\''+t[0]+'\')"><b>'+t[1]+'</b>'+t[2]+'</a>';
+  }).join("");
+}
+function tab(x){S.tab=x;save();render()}
+
+function screenOrders(){
+  var h='<h2 style="margin-top:0">Заявки · волна '+Math.min(S.wave,3)+'/3 · '+S.orders.length+' шт.</h2>';
+  if(S.wave<=3&&!S.waveDone[S.wave])
+    h+='<button class="btn" onclick="nextWave()">📨 Получить волну '+S.wave+' ('+({1:15,2:5,3:10}[S.wave])+' заявок)</button>';
+  if(!S.orders.length)h+='<div class="c m">Заявок нет. Получи волну или жми «След. день».</div>';
+  S.orders.forEach(function(o){
+    h+='<div class="c t" onclick="pick('+o.id+')"><div class="r"><span class="n">'+o.from+' → '+o.city+' ('+o.point+')</span><span class="pay">'+f(o.pay)+' Br</span></div><div class="m">'+(o.urgent?'<span class="tag bad">СРОЧНО</span>':'')+o.g+' · '+(o.type=="i"?"изотерм":"тент")+' · '+o.km+' км'+(o.ru?' · 🇷🇺':'')+'</div></div>';
+  });
+  B.innerHTML=h;
+}
+
+function pick(oid){
+  var o=S.orders.filter(function(x){return x.id==oid})[0];
+  var free=S.tr.filter(function(s){return s.st==0&&!s.busy});
+  var h='<div class="n">'+o.from+' → '+o.city+' ('+o.point+')</div><div class="m">'+o.g+' · '+o.km+' км · '+f(o.pay)+' Br</div>';
+  if(!free.length)h+='<div class="c m" style="margin-top:10px">Нет свободных машин.</div>';
+  free.forEach(function(s){
+    var t=ti(s.id),chk=canAssign(s.id,oid);
+    var tr=calcTrip(o,t);
+    h+='<div class="c'+(chk.ok?' t':'')+'" style="margin-top:10px" onclick="'+(chk.ok?'assign('+s.id+','+oid+')':'')+'"><div class="r"><span class="n">'+s.dr+' · '+t[1]+' №'+s.id+'</span><span class="chip">'+(t[4]=="i"?"изотерм":"тент")+'</span></div><div class="m">'+t[8]+' · ~'+tr.days+' дн.'+(tr.back?' · ↩ '+tr.back:'')+(chk.ok?'':' · <span class="bad">'+chk.msg+'</span>')+'</div></div>';
+  });
+  modal(h);
+}
+
+function screenFleet(){
+  var h='<h2 style="margin-top:0">Автопарк ('+S.tr.length+')</h2>';
+  var fam={volvo:"🇸🇪 Volvo",daf:"🇳🇱 DAF",dongfeng:"🇨🇳 Dongfeng",kamaz:"🇷🇺 КАМАЗ",scania:"🇸🇪 Scania",iveco:"🇮🇹 Iveco",renault:"🇫🇷 Renault"};
+  ["volvo","daf","dongfeng","kamaz","scania","iveco","renault"].forEach(function(k){
+    var list=S.tr.filter(function(s){return ti(s.id)[9]==k});
+    if(!list.length)return;
+    h+='<h2>'+fam[k]+'</h2>';
+    list.forEach(function(s){
+      var t=ti(s.id);
+      var st=s.st==0?(s.busy?"В рейсе":"Свободен"):s.st==1?"Нет водителя":"Ремонт";
+      h+='<div class="c"><div class="r"><div><div class="n">'+t[1]+' №'+s.id+' · '+t[8]+'</div><div class="m">'+(s.dr||"—")+' · '+(t[4]=="i"?"изотерм":"тент")+' · '+t[10].toUpperCase()+'</div></div><span class="chip">'+st+'</span></div></div>';
+    });
+  });
+  B.innerHTML=h;
+}
+
+function screenTrips(){
+  var h='<h2 style="margin-top:0">В пути ('+S.trips.length+')</h2>';
+  if(!S.trips.length)h+='<div class="c m">Никто не в рейсе.</div>';
+  S.trips.forEach(function(p){
+    var s=ts(p.tid);
+    var prog=Math.round(100*(p.tot-p.left)/p.tot);
+    h+='<div class="c"><div class="r"><span class="n">'+s.dr+' → '+p.o.city+' ('+p.o.point+')</span><span class="chip">'+p.left+' дн.</span></div><div class="m">'+p.o.g+' · '+p.o.km+' км · '+p.doc+'</div><div class="bar"><i style="width:'+prog+'%"></i></div>'+(p.calc.back?'<div class="m">↩ '+p.calc.back+'</div>':'')+'</div>';
+  });
+  B.innerHTML=h;
+}
+
+function screenLog(){
+  var h='<h2 style="margin-top:0">Журнал</h2><div class="c"><div class="m">Рейсов: '+S.stats.done+' · Выручка: '+f(S.stats.earn)+' Br</div></div>';
+  if(!S.log.length)h+='<div class="c m">Пока пусто.</div>';
+  S.log.forEach(function(x){h+='<div class="ev">'+x+'</div>'});
+  B.innerHTML=h;
+}
+
+function modal(h){M.innerHTML='<div class="ov" onclick="if(event.target==this)closeModal()"><div class="sh">'+h+'<button class="btn g" onclick="closeModal()">Закрыть</button></div></div>'}
+function closeModal(){M.innerHTML=""}
+
+load();S.tab=S.tab||"o";render();
+</script>
+</body>
+</html>
