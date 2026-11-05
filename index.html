@@ -39,6 +39,7 @@ nav a.on{color:var(--acc)}
 .sh{background:var(--card);width:100%;max-width:640px;margin:auto;max-height:85vh;overflow:auto;border-radius:16px 16px 0 0;padding:20px;border-top:1px solid var(--bd)}
 .btn{display:block;width:100%;padding:14px;border:0;border-radius:8px;background:var(--acc);color:#000;font-size:15px;font-weight:700;margin-top:12px;cursor:pointer}
 .btn.g{background:#21262d;color:var(--tx);border:1px solid var(--bd)}
+.btn.bad{background:var(--bad); color:#fff;}
 .ev{font-size:13px;color:var(--mut);padding:8px 0;border-bottom:1px solid var(--bd);font-family:monospace}
 .ev:last-child{border:none}
 
@@ -51,6 +52,11 @@ nav a.on{color:var(--acc)}
 .speed-info{display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding:8px; background:#21262d; border-radius:8px}
 .speed-val{font-size:18px; font-weight:bold; color:#fff}
 .speed-val.fast{color:var(--ok)}
+
+/* ПЛАШКА ЗВОНКА */
+.call-alert{background:var(--bad); color:#fff; padding:12px; border-radius:8px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; animation: pulse 2s infinite;}
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(248,81,73,0.7); } 70% { box-shadow: 0 0 0 10px rgba(248,81,73,0); } 100% { box-shadow: 0 0 0 0 rgba(248,81,73,0); } }
+.call-alert .n {color:#fff;}
 </style>
 </head>
 <body>
@@ -96,10 +102,13 @@ var RU=[["Смоленск",[["Склад",650]]],["Москва",[["Склад"
 var CARGO_BY=[["Пиво «Лидское» Premium","i","Лидский пивзавод"],["Пиво «Лидское» Pilsner","i","Лидский пивзавод"],["Квас «Лидский»","i","Лидский пивзавод"],["Газировка Pepsi","i","Лидский пивзавод"],["Сидр FIZZ","i","Лидский пивзавод"],["Вода «Aura»","i","Лидский пивзавод"],["Мебель (Толстого)","t","Склад Толстого"],["Холодильники (Толстого)","t","Склад Толстого"],["Продукция (Фурманова)","i","Склад Фурманова"]];
 var CARGO_RU=[["Пиво «Лидское»","t","Лидский пивзавод"],["Квас «Лидский»","t","Лидский пивзавод"],["Поддоны","t","Склад"]];
 
-var S,KEY="lbt_v11";
+// Список механиков
+var MECHS = ["Павел Павлович", "Скворец (батя)", "Скворец (сын)"];
+
+var S,KEY="lbt_v12";
 function nw(){return{
 day:1,money:5000,rep:50,orders:[],log:[],
-tr:T.map(function(t){return{id:t[0],dr:t[5],st:t[6],fat:0,busy:0,task:null,endTime:0,stage:"",progress:0}}),
+tr:T.map(function(t){return{id:t[0],dr:t[5],st:t[6],fat:0,busy:0,task:null,endTime:0,stage:"",progress:0,breakdown:null}}),
 oid:1,stats:{done:0,earn:0},lastWave:0,checkedDay:0,
 fuel: 300
 }}
@@ -139,9 +148,7 @@ function assign(tid,oid){
   
   S.fuel -= fuelNeeded;
 
-  // Скорость зависит от мощности (380-520 л.с.)
   var speed = Math.round(55 + (t[2] / 10)); 
-  
   var loadH = 2; 
   var driveH = Math.round(o.km / speed); 
   var unloadH = 2;
@@ -149,14 +156,65 @@ function assign(tid,oid){
 
   s.busy = 1;
   s.task = {
-    o:o, stage:"Загрузка", speed: speed,
+    o:o, stage:"Загрузка", speed: speed, breakdown: null,
     endTime: Date.now() + (loadH*MS_PER_HOUR), 
     totalHours:loadH+driveH+unloadH, driveH:driveH, unloadH:unloadH, msPerHour:MS_PER_HOUR, kmPassed: 0
   };
   
   S.orders = S.orders.filter(function(x){return x.id!=oid});
-  log("▶ "+s.dr+" выехал. Скорость: "+speed+" км/ч. Списали "+fuelNeeded+" л.");
+  log("▶ "+s.dr+" выехал. Скорость: "+speed+" км/ч.");
   save();render();closeModal();
+}
+
+// Случайные поломки
+function triggerRandomEvent() {
+  var busyTrucks = S.tr.filter(function(s){return s.busy && s.task && s.task.stage == "В пути" && !s.task.breakdown});
+  if(busyTrucks.length === 0) return false;
+
+  // 10% шанс поломки каждую минуту
+  if(Math.random() < 0.10) {
+    var truck = busyTrucks[R(0, busyTrucks.length - 1)];
+    var events = [
+      { text: "Пробил колесо", delay: 2, cost: 150 },
+      { text: "Сломался генератор", delay: 4, cost: 400 },
+      { text: "Пробка на трассе", delay: 2, cost: 0 }
+    ];
+    var ev = events[R(0, events.length - 1)];
+    
+    truck.task.breakdown = {
+      text: ev.text,
+      cost: ev.cost,
+      delayH: ev.delay,
+      mechanic: MECHS[R(0, MECHS.length - 1)]
+    };
+    log("📞 " + truck.dr + " звонит: " + ev.text);
+    return true;
+  }
+  return false;
+}
+
+function resolveBreakdown(tid, useMechanic) {
+  var s = ts(tid);
+  if(!s || !s.task || !s.task.breakdown) return;
+  
+  var br = s.task.breakdown;
+  var delayMs = br.delayH * s.task.msPerHour;
+  
+  if (useMechanic) {
+    // Механик едет (ускоряет ремонт)
+    delayMs = Math.max(1, br.delayH - 1) * s.task.msPerHour;
+    log("🔧 " + br.mechanic + " выехал к " + s.dr + ". Ремонт займет " + Math.max(1, br.delayH - 1) + " ч.");
+  } else {
+    log("🚛 " + s.dr + " решает проблему сам. Простой " + br.delayH + " ч.");
+  }
+  
+  S.money -= br.cost;
+  log("💸 Ремонт обошелся в " + br.cost + " Br.");
+  
+  s.task.endTime += delayMs;
+  s.task.breakdown = null;
+  
+  save(); render();
 }
 
 function tick(){
@@ -176,11 +234,17 @@ function tick(){
   if(h === 14 && S.lastWave !== 14){ genWave(5); S.lastWave=14; log("📨 Дневная волна (5)"); }
   if(h === 17 && S.lastWave !== 17){ genWave(10); S.lastWave=17; log("📨 Вечерняя волна (10)"); }
 
+  // Проверяем случайные события
+  triggerRandomEvent();
+
   var changed = false;
   S.tr.forEach(function(s){
     if(!s.busy || !s.task) return;
     var t = s.task;
     
+    // Если сломались, стоим, километры не идут
+    if (t.breakdown) return;
+
     if(t.stage == "В пути") {
       var totalDriveMs = t.driveH * t.msPerHour;
       var leftMs = t.endTime - now;
@@ -227,7 +291,6 @@ function render(){
   else screenLog();
 }
 function navb(){
-  // Теперь вместо "Линии" вкладка "Навигация"
   var L=[["o","📦","Заявки"],["f","🚛","Парк"],["n","🗺","Навигация"],["g","⛽","Лукойл"],["e","⚙️","Ещё"]];
   N.innerHTML=L.map(function(t){return '<a class="'+(S.tab==t[0]?'on':'')+'" onclick="tab(\''+t[0]+'\')"><b>'+t[1]+'</b>'+t[2]+'</a>'}).join("");
 }
@@ -258,6 +321,17 @@ function pick(oid){
 function screenNavigation(){
   var h='<h2>Навигация онлайн</h2>';
   var busy=S.tr.filter(function(s){return s.busy});
+  
+  // Выводим звонки первыми
+  var calls = busy.filter(function(s){ return s.task && s.task.breakdown });
+  calls.forEach(function(s){
+    var br = s.task.breakdown;
+    h+='<div class="call-alert">';
+    h+='<div><div class="n">📞 Звонит ' + s.dr + '</div><div class="m" style="color:#fff">' + br.text + '. Свободен ' + br.mechanic + '.</div></div>';
+    h+='<button class="btn" style="width:auto; margin:0; padding:8px 12px; background:#fff; color:var(--bad)" onclick="showCallModal('+s.id+')">Ответить</button>';
+    h+='</div>';
+  });
+
   if(!busy.length)h+='<div class="c m" style="text-align:center;padding:20px">Все грузовики на базе.</div>';
   
   busy.forEach(function(s){
@@ -267,27 +341,23 @@ function screenNavigation(){
 
     var pct = Math.min(100, Math.max(0, (task.kmPassed / task.o.km) * 100));
     var truckIcon = task.stage == "Выгрузка" ? "📦" : "🚛";
+    if(task.breakdown) truckIcon = "🛠";
     
-    var currentSpeed = 0;
-    var speedClass = "";
-    var speedText = "0";
-    var statusText = "";
-
-    if (task.stage == "В пути") {
-      currentSpeed = task.speed;
-      speedClass = "fast";
-      speedText = currentSpeed;
-      statusText = "В пути";
+    var currentSpeed = 0, speedClass = "", speedText = "0", statusText = "";
+    
+    if (task.breakdown) {
+       statusText = "ПОЛОМКА";
+    } else if (task.stage == "В пути") {
+      currentSpeed = task.speed; speedClass = "fast"; speedText = currentSpeed; statusText = "В пути";
     } else if (task.stage == "Загрузка") {
       statusText = "Погрузка: " + task.o.from;
     } else if (task.stage == "Выгрузка") {
       statusText = "Выгрузка: " + task.o.city;
     }
 
-    h+='<div class="c" style="padding-bottom:12px">';
-    h+='<div class="r"><div><div class="n">'+t[1]+' №'+s.id+'</div><div class="m">'+s.dr+'</div></div><span class="chip '+(task.stage=="В пути"?"on":"warn")+'">'+statusText+'</span></div>';
+    h+='<div class="c" style="padding-bottom:12px; '+(task.breakdown?'border-color:var(--bad)':'')+'">';
+    h+='<div class="r"><div><div class="n">'+t[1]+' №'+s.id+'</div><div class="m">'+s.dr+'</div></div><span class="chip '+(task.breakdown?'bad':(task.stage=="В пути"?"on":"warn"))+'">'+statusText+'</span></div>';
     
-    // Карта
     h+='<div class="map-track">';
     h+='<div class="map-line"></div>';
     h+='<div class="map-start">Лида</div>';
@@ -295,7 +365,6 @@ function screenNavigation(){
     h+='<div class="map-truck" style="left:'+pct+'%">'+truckIcon+'</div>';
     h+='</div>';
     
-    // Инфо
     h+='<div class="speed-info">';
     h+='<div><div class="m">Проехал</div><div class="speed-val">'+task.kmPassed+' / '+task.o.km+' км</div></div>';
     h+='<div style="text-align:right"><div class="m">Скорость</div><div class="speed-val '+speedClass+'">'+speedText+' км/ч</div></div>';
@@ -309,61 +378,21 @@ function screenNavigation(){
   B.innerHTML=h;
 }
 
+function showCallModal(tid){
+  var s = ts(tid);
+  var br = s.task.breakdown;
+  var h = '<div class="n" style="font-size:18px; color:var(--bad)">📞 Звонок от ' + s.dr + '</div>';
+  h += '<div class="m" style="margin:10px 0; font-size:15px">«Командир, у меня проблема: ' + br.text + '. Что делаем? Свободен механик: ' + br.mechanic + '»</div>';
+  
+  h += '<button class="btn" onclick="resolveBreakdown('+tid+', true); closeModal();">Отправить механика ('+br.mechanic+')<br><span style="font-size:12px; font-weight:400">Простой: ' + Math.max(1, br.delayH - 1) + ' ч. Ремонт: ' + br.cost + ' Br</span></button>';
+  
+  h += '<button class="btn g" onclick="resolveBreakdown('+tid+', false); closeModal();">Сказать решать самому<br><span style="font-size:12px; font-weight:400">Простой: ' + br.delayH + ' ч. Ремонт: ' + br.cost + ' Br</span></button>';
+  
+  modal(h);
+}
+
 function screenFuel(){
   var h='<h2>АЗС Лукойл</h2>';
   h+='<div class="c" style="text-align:center; padding:20px">';
   h+='<div class="n">Общий бак компании</div>';
-  h+='<div style="font-size:32px; color:var(--ok); font-weight:bold; margin:10px 0">'+Math.round(S.fuel)+' л.</div>';
-  h+='<div class="m">Выделяется 300 л каждое утро.</div>';
-  h+='</div>';
-
-  h+='<div class="c">';
-  h+='<div class="n">Купить солярку</div>';
-  h+='<div class="m">Цена: 2.71 Br/л</div>';
-  h+='<button class="btn" onclick="if(S.money>=271){S.money-=271; S.fuel+=100; log(\'⛽ Куплено 100 л.\'); save(); render();}else{TG.showAlert(\'Мало денег!\')}">Купить 100 л. за 271 Br</button>';
-  h+='</div>';
-  B.innerHTML=h;
-}
-
-function screenFleet(){
-  var h='<h2>Автопарк</h2>';
-  var fam={volvo:"Volvo",daf:"DAF",dongfeng:"Dongfeng",kamaz:"КАМАЗ",scania:"Scania",iveco:"Iveco",renault:"Renault"};
-  ["volvo","daf","dongfeng","kamaz","scania","iveco","renault"].forEach(function(k){
-    var list=S.tr.filter(function(s){return ti(s.id)[9]==k});
-    if(!list.length)return;
-    h+='<h2 style="margin-top:20px;color:#fff">'+fam[k]+'</h2>';
-    list.forEach(function(s){
-      var t=ti(s.id);
-      var st="Свободен", cls="ok";
-      if(s.busy) { st=s.task.stage; cls="on"; }
-      else if(s.st==1) { st="Без водителя"; cls="warn"; }
-      else if(s.st==3) { st="Ремонт"; cls="bad"; }
-      h+='<div class="c"><div class="r"><div><div class="n">'+t[1]+' №'+s.id+' <span style="font-size:12px;color:var(--mut);font-weight:400">'+t[8]+'</span></div><div class="m">'+(s.dr||"—")+' · '+t[10].toUpperCase()+'</div></div><span class="chip '+cls+'">'+st+'</span></div></div>';
-    });
-  });
-  B.innerHTML=h;
-}
-
-function screenLog(){
-  var h='<h2>Журнал событий</h2>';
-  S.log.forEach(function(x){h+='<div class="ev">'+x+'</div>'});
-  B.innerHTML=h;
-}
-
-function screenMore(){
-  var h='<h2>Настройки и Тест</h2>';
-  h+='<div class="c"><div class="n">Тестовый режим</div><div class="m" style="margin-bottom:10px">Вызвать 10 тестовых заявок.</div><button class="btn" onclick="genWave(10);save();render();tab(\'o\')">Сгенерировать 10 заявок</button></div>';
-  h+='<div class="c"><div class="n">Сброс игры</div><div class="m" style="margin-bottom:10px">Начать заново.</div><button class="btn g" onclick="if(confirm(\'Точно?\')){localStorage.removeItem(KEY);location.reload()}">Сбросить прогресс</button></div>';
-  B.innerHTML=h;
-}
-
-function modal(h){M.innerHTML='<div class="ov" onclick="if(event.target==this)closeModal()"><div class="sh">'+h+'<button class="btn g" onclick="closeModal()">Отмена</button></div></div>'}
-function closeModal(){M.innerHTML=""}
-
-load();
-S.tab=S.tab||"o";
-setInterval(tick, 1000);
-render();
-</script>
-</body>
-</html>
+  h+='<div style="font-size:32px; color:var(--ok); font-weight:bold; margin:10px 0">
